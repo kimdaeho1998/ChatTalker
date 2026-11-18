@@ -1,0 +1,11 @@
+:root { font-family: Inter, system-ui, sans-serif; color: #18212f; background: #f4f7fb; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; }
+button { border: 0; border-radius: 8px; background: #1769e0; color: #fff; cursor: pointer; font: inherit; padding: .7rem 1rem; }
+.app-shell { display: grid; min-height: 100vh; place-items: center; padding: 2rem; }
+.card { width: min(100%, 640px); border: 1px solid #dce3ef; border-radius: 16px; background: #fff; box-shadow: 0 12px 40px #18212f12; padding: 2rem; }
+.eyebrow { color: #1769e0; font-size: .8rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+h1 { margin: .25rem 0 .75rem; }
+dl { display: grid; gap: .35rem; margin: 1.5rem 0; }
+dt { color: #64748b; font-weight: 600; }
+dd { margin: 0; overflow-wrap: anywhere; }

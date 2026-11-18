@@ -1,0 +1,1 @@
+"""Chatalker backend application package."""

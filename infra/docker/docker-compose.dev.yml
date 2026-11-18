@@ -1,0 +1,15 @@
+﻿services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: chatalker-postgres-dev
+    environment:
+      POSTGRES_DB: chatalker_dev
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in a local .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in a local .env}
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - chatalker_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  chatalker_postgres_data:

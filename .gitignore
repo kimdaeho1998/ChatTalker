@@ -12,6 +12,7 @@
 venv/
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -27,6 +28,7 @@ apps/desktop/src-tauri/target/
 
 # Logs and test caches
 *.log
+infra/docker/docker-compose.dev.yml.bak
 coverage/
 playwright-report/
 test-results/

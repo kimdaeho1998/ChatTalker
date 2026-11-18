@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Chatalker",
+  "version": "0.1.0",
+  "identifier": "com.sunbi.chatalker",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      { "title": "Chatalker", "width": 960, "height": 680, "resizable": true }
+    ],
+    "security": { "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8000; style-src 'self' 'unsafe-inline'" }
+  },
+  "bundle": { "active": true, "targets": "all", "windows": { "wix": { "language": ["ko-KR"] } } }
+}
