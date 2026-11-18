@@ -1,0 +1,42 @@
+Requirement ID,Priority,Design Contract,API/DB Reference,Test Cases,Acceptance Status
+AUTH-001,P0,Security/RBAC,POST /admin/accounts; accounts/audit_events,AT-AUTH-01,Specified
+AUTH-002,P0,Security/session,POST /auth/login and password; sessions,AT-AUTH-02,Specified
+AUTH-003,P0,Security/revocation,PATCH /admin/accounts/{id}; sessions/ws,AT-AUTH-03,Specified
+AUTH-004,P0,DB/audit,audit_events,AT-AUTH-04,Specified
+MSG-001,P0,Architecture/message,POST /conversations/{id}/messages; messages,AT-MSG-01,Specified
+MSG-002,P0,Security/membership,group membership API,AT-MSG-02,Specified
+MSG-003,P0,DB/durability,messages transaction,AT-MSG-03,Specified
+MSG-004,P0,API/WebSocket,WS sync; delivery_events,AT-MSG-04,Specified
+MSG-005,P1,Security/search,GET /messages/search,AT-MSG-05,Specified
+MSG-006,P1,DB/read state,POST /read-state; message_reads,AT-MSG-06,Specified
+MSG-007,P1,API/attachments,private R2 attachment flow,AT-MSG-07,Blocked-OD001
+MSG-008,P1,UI/UX,Tauri notification integration,AT-MSG-08,Specified
+AI-001,P0,Architecture/AI,POST /briefings/morning; briefings,AT-AI-01,Specified
+AI-002,P0,API/source links,briefing items,AT-AI-02,Specified
+AI-003,P0,Security/AI,AI scopes/audit,AT-AI-03,Specified
+AI-004,P0,UI fallback,briefing response,AT-AI-04,Specified
+AI-005,P1,DB/cache,briefing_runs,AT-AI-05,Blocked-OD003
+TASK-001,P0,DB/tasks,POST /tasks; tasks,AT-TASK-01,Specified
+TASK-002,P0,DB/task history,POST /tasks/{id}/check,AT-TASK-02,Specified
+TASK-003,P0,DB/carryover,scheduler; tasks,AT-TASK-03,Specified
+TASK-004,P0,DB/recurrence,scheduler; task_instances,AT-TASK-04,Specified
+TASK-005,P0,Architecture/calendar,Korean holiday plus admin day-off calendar,AT-TASK-05,Specified
+TASK-006,P0,API/metrics,GET /tasks/metrics,AT-TASK-06,Specified
+TASK-007,P0,Security/admin scope,GET /admin/task-status,AT-TASK-07,Specified
+TASK-008,P0,Security/AI,AI role policy,AT-TASK-08,Specified
+WIN-001,P0,Architecture/UI,installer and supported Windows platform,AT-WIN-01,Specified
+WIN-002,P1,UI/UX/Tauri,system tray and auto-start,AT-WIN-02,Specified
+WIN-003,P0,Security/Tauri,signed update verification,AT-WIN-03,Blocked-OD004
+ATT-001,P0,Security/attachments,private R2 and scan gate,AT-ATT-01,Blocked-OD001
+TASK-009,P1,UI/UX/calendar,business_calendar,AT-TASK-09,Specified
+OPS-001,P0,Architecture/operations,message delivery metric,AT-OPS-01,Specified
+NFR-001,P0,Security,TLS/auth middleware,AT-NFR-01,Specified
+NFR-002,P0,Architecture,delivery events,AT-NFR-02,Specified
+NFR-003,P0,Database,constraints,AT-NFR-03,Specified
+NFR-004,P1,Operations,performance plan,AT-NFR-04,Blocked-OwnerTarget
+NFR-005,P0,Operations,logging/audit,AT-NFR-05,Specified
+NFR-006,P0,Security,AI gateway,AT-NFR-06,Blocked-OD003
+NFR-007,P1,UI/UX,desktop screens,AT-NFR-07,Specified
+NFR-008,P0,Deployment,runbook,AT-NFR-08,Specified
+NFR-009,P0,Architecture,compatibility matrix,AT-NFR-09,Specified
+NFR-010,P0,Change control,release checklist,AT-NFR-10,Specified

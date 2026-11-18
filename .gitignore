@@ -1,0 +1,41 @@
+# Environment and secrets (.env.example remains trackable)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node.js and Tauri/Rust build output
+node_modules/
+dist/
+build/
+target/
+apps/desktop/src-tauri/target/
+
+# Logs and test caches
+*.log
+coverage/
+playwright-report/
+test-results/
+
+# IDE and OS files
+.vscode/
+.idea/
+*.suo
+*.user
+.DS_Store
+Thumbs.db
+Desktop.ini
