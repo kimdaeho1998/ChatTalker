@@ -1,8 +1,8 @@
 Requirement ID,Priority,Design Contract,API/DB Reference,Test Cases,Acceptance Status
-AUTH-001,P0,Security/RBAC,POST /admin/accounts; accounts/audit_events,AT-AUTH-01,Specified
-AUTH-002,P0,Security/session,POST /auth/login and password; sessions,AT-AUTH-02,Specified
-AUTH-003,P0,Security/revocation,PATCH /admin/accounts/{id}; sessions/ws,AT-AUTH-03,Specified
-AUTH-004,P0,DB/audit,audit_events,AT-AUTH-04,Specified
+AUTH-001,P0,Security/RBAC,ONE_TIME_LOCAL_CLI bootstrap; POST /admin/accounts; accounts/bootstrap_state/audit_events,AT-AUTH-01;AT-AUTH-02,Specified; OD-005 accepted
+AUTH-002,P0,Security/session,POST /auth/login and /auth/password; accounts/sessions,AT-AUTH-03;AT-AUTH-04;AT-AUTH-05,Specified
+AUTH-003,P0,Security/revocation,POST /auth/refresh and /auth/logout; PATCH /admin/accounts/{id}; sessions/refresh_token_families/ws,AT-AUTH-06;AT-AUTH-07;AT-AUTH-08;AT-AUTH-09;AT-AUTH-10;AT-AUTH-11,Specified
+AUTH-004,P0,DB/audit,authentication_audit_events/audit_events,AT-AUTH-12,Specified
 MSG-001,P0,Architecture/message,POST /conversations/{id}/messages; messages,AT-MSG-01,Specified
 MSG-002,P0,Security/membership,group membership API,AT-MSG-02,Specified
 MSG-003,P0,DB/durability,messages transaction,AT-MSG-03,Specified

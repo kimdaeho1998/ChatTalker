@@ -1,7 +1,7 @@
 # DOC-07 REST / WebSocket API Contracts
 
 ## Common rules
-HTTPS/WSS only. Bearer session token required except login; response `{code,message,correlation_id,data}`; validation errors are `400`, unauthenticated `401`, forbidden `403`, missing `404`, conflict/idempotency `409`, unavailable dependency `503`. Server rejects disabled/revoked accounts on every request and socket operation.
+HTTPS/WSS only. Bearer access token is required except login and refresh; response `{code,message,correlation_id,data}`; validation errors are `400`, unauthenticated `401`, forbidden `403`, missing `404`, conflict/idempotency `409`, unavailable dependency `503`. Authentication failures use generic `401 AUTH_INVALID` and never disclose whether an account exists. Access tokens expire after 15 minutes; refresh tokens expire after 7 days. The server never persists a raw refresh token and validates active account, session, auth version, token family and expiration on API and WebSocket operations. Public bootstrap API is disabled.
 
 | Operation | Input → output / authorization |
 |---|---|
@@ -16,5 +16,18 @@ HTTPS/WSS only. Bearer session token required except login; response `{code,mess
 | `POST /tasks`, `POST /tasks/{id}/check`, `GET /tasks/metrics` | owned task/check/filter → state/metrics; owner only. |
 | `GET /admin/task-status` | chief admin may query company scope; standard admin only delegated departments; sensitive results are audited. |
 
+## Detailed authentication contract
+
+| Operation | Request / successful response | Authentication, authorization and error contract |
+|---|---|---|
+| `chatalker-admin bootstrap` (local CLI) | Interactive login/display name, initial password and entered one-time secret; separately loaded local-environment approved secret → first administrator account/audit ID | No public API exists. Approved operator only; no secret appears in command-line arguments, logs or DB. CLI performs cryptographically secure secret comparison, discards local secret material after success, and invokes one atomic PostgreSQL transaction with lock/constraint control. Existing administrator/bootstrap state, failed comparison or concurrent loser fails closed; rollback leaves no account/audit partial state. |
+| `POST /admin/accounts` | Staff identity, department, role, initial credential delivery reference → account ID/audit ID | Existing authorized administrator within delegated scope only. Duplicate login is `409`; unauthorized caller is `403`; no public counterpart exists. |
+| `POST /auth/login` | `login`, `password` → `PASSWORD_CHANGE_REQUIRED` or `{access_token, access_expires_in:900, refresh_token, refresh_expires_in:604800, session_id}` | Publicly callable and rate-limited. Unknown login, invalid password, disabled account and revoked state return generic `401 AUTH_INVALID`; normal tokens never issue before required password change. |
+| `POST /auth/refresh` | Refresh token → rotated access/refresh pair and session metadata | One atomic use only. Expired, revoked, unknown or reused token returns `401 AUTH_INVALID`; detected reuse or losing concurrent refresh revokes its family and active sessions and audits the event. |
+| `POST /auth/logout` | Current session/refresh context → revocation confirmation | Authenticated current session only; successful revocation is idempotent. Subsequent access or refresh is rejected. |
+| `POST /auth/password` | Current password, new password → normal token pair after required change or password-change confirmation | Current authenticated or change-required context only. Invalid old/new policy result is safe `400`; password is never logged. |
+| `PATCH /admin/accounts/{id}` | Status, role, department or scope change → account/audit ID | Authorized scoped administrator only. Deactivation revokes all account sessions/token families and terminates sockets transactionally; unauthorized is `403`, missing is `404`. |
+| `POST /admin/accounts/{id}/sessions/revoke` | Optional target session/family → audit/revocation confirmation | Authorized scoped administrator only; selected or all account session families are revoked without exposing raw tokens. |
+
 ## WebSocket `GET /ws`
-Handshake validates bearer token, account status/auth version. Client events: `subscribe`, `resume {after_cursor}`, `ping`. Server events: `message.created`, `message.read`, `conversation.updated`, `account.revoked`, `sync.page`, `error`. Each includes cursor/event ID where durable. On `account.revoked` server sends terminal event then closes. Clients deduplicate by entity/event ID; server retains no authorization bypass via cursor.
+Handshake validates bearer access token, active session, account status/auth version and expiration. Client events: `subscribe`, `resume {after_cursor}`, `ping`. Server events: `message.created`, `message.read`, `conversation.updated`, `account.revoked`, `sync.page`, `error`. Each includes cursor/event ID where durable. On session revoke, account deactivation, or token invalidation server sends terminal `account.revoked` where safe then closes. Invalid handshakes are rejected without account-existence disclosure. Clients deduplicate by entity/event ID; server retains no authorization bypass via cursor.

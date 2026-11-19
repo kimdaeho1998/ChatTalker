@@ -10,7 +10,7 @@
 7. Deliver approved attachments/Windows integrations, hardening, acceptance and release review.
 
 ## Entry criteria
-Owner approves this work order; verified dependency matrix; named non-production environments; secret-management plan; migration/backup/rollback plan; test data strategy; no unresolved contract conflict; and a measured 50-user/p95 delivery test plan. Final production authentication configuration is blocked by session-expiry policy (OD-002). External AI activation is blocked by retention/notice policy (OD-003); attachment release is blocked by OD-001; automatic-update release configuration is blocked by OD-004. **Status:** NOT AUTHORIZED TO START. R01 scope excludes any unapproved feature.
+Owner approves this work order; verified dependency matrix; named non-production environments; secret-management plan; migration/backup/rollback plan; test data strategy; no unresolved contract conflict; and a measured 50-user/p95 delivery test plan. OD-002 authentication policy is accepted in SM-R01-B-R0 and OD-005 local bootstrap policy is accepted in SM-R01-B-R0-F1, but implementation still requires a separately approved work order. External AI activation is blocked by retention/notice policy (OD-003); attachment release is blocked by OD-001; automatic-update release configuration is blocked by OD-004. **Status:** NOT AUTHORIZED TO START. R01 scope excludes any unapproved feature.
 
 ## Repository execution boundary
 R01 work, if separately approved, uses the root Monorepo: `apps/desktop`, `apps/backend`, `packages/contracts`, `infra`, `scripts`, `.github`, and `docs`. It must not create a second repository, nested Git repository, submodule, worktree, or copied development folder.

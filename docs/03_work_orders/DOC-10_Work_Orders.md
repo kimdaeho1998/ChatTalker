@@ -5,7 +5,7 @@ No work order authorizes implementation until Owner approval.
 | ID | Deliverable / dependencies / evidence |
 |---|---|
 | WO-R01-01 | Validate toolchain versions and Windows compatibility; dependency lock evidence; resolves version gate. |
-| WO-R01-02 | Implement identity/session/RBAC/audit vertical slice; AUTH tests and security review; ADR-006 accepted, final production session configuration needs OD-002. |
+| WO-R01-02 | Implement identity/session/RBAC/audit vertical slice; AUTH tests and security review. OD-002 is accepted in SM-R01-B-R0: 15-minute access, 7-day refresh, hash-only PostgreSQL refresh storage, rotation/reuse detection, session revocation and REST/WSS validation. OD-005 is accepted in SM-R01-B-R0-F1: first administrator is ONE_TIME_LOCAL_CLI with separate local-environment approved secret, interactive inputs, atomic PostgreSQL single-winner control, fail-closed reexecution and audit. |
 | WO-R01-03 | Implement durable conversations, messages, sync and receipts; migration + disconnect/reconnect tests. |
 | WO-R01-04 | Implement task model, Korean-holiday/admin-day-off calendar adapter, recurrence/carryover idempotency and metrics; ADR-004 accepted. |
 | WO-R01-05 | Implement briefing authorization/fallback and approved AI gateway; ADR-007 accepted, external activation needs OD-003. |
