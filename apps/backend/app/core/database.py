@@ -6,7 +6,8 @@ from app.core.config import get_settings
 
 def get_development_engine() -> Engine | None:
     """Create a TLS-only, bounded engine when an explicit development URL exists."""
-    database_url = get_settings().database_url
+    settings = get_settings()
+    database_url = settings.database_url
     if database_url is None:
         return None
     if database_url.startswith("postgres://"):
@@ -21,5 +22,5 @@ def get_development_engine() -> Engine | None:
         pool_size=2,
         max_overflow=0,
         pool_timeout=10,
-        connect_args={"sslmode": "require"},
+        connect_args={"sslmode": settings.database_sslmode},
     )

@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -7,6 +8,7 @@ class Settings(BaseSettings):
     app_name: str = "Chatalker API"
     app_env: str = "development"
     database_url: str | None = None
+    database_sslmode: Literal["disable", "require", "verify-ca", "verify-full"] = "require"
     cors_allowed_origins: list[str] = [
         "http://localhost:1420",
         "http://127.0.0.1:1420",
