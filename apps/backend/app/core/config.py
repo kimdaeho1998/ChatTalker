@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,6 +10,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str | None = None
     database_sslmode: Literal["disable", "require", "verify-ca", "verify-full"] = "require"
+    jwt_secret: SecretStr | None = None
+    jwt_issuer: str = "chatalker-api"
+    jwt_audience: str = "chatalker-desktop"
     cors_allowed_origins: list[str] = [
         "http://localhost:1420",
         "http://127.0.0.1:1420",

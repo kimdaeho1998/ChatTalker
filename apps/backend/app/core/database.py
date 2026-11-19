@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.core.config import get_settings
 
@@ -24,3 +25,10 @@ def get_development_engine() -> Engine | None:
         pool_timeout=10,
         connect_args={"sslmode": settings.database_sslmode},
     )
+
+
+def get_session_factory() -> sessionmaker[Session]:
+    engine = get_development_engine()
+    if engine is None:
+        raise RuntimeError("DATABASE_URL is required")
+    return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

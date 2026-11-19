@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
+from app.api.auth import router as auth_router
 
 
 def create_app() -> FastAPI:
@@ -12,8 +13,8 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=settings.cors_allowed_origins,
         allow_credentials=False,
-        allow_methods=["GET"],
-        allow_headers=[],
+        allow_methods=["GET", "POST", "PATCH"],
+        allow_headers=["Authorization", "Content-Type"],
         allow_private_network=True,
     )
 
@@ -25,6 +26,8 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         # Deliberately does not create or query a DB connection.
         return {"status": "ok", "service": "chatalker-backend", "database": "not_checked"}
+
+    app.include_router(auth_router)
 
     return app
 
