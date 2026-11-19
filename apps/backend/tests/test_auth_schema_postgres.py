@@ -28,27 +28,46 @@ def integration_engine() -> Engine:
         engine.dispose()
 
 
-def _insert_account(connection, *, login: str, status: str = "active", auth_version: int = 1) -> uuid.UUID:
+def _insert_account(
+    connection,
+    *,
+    login: str,
+    status: str = "active",
+    auth_version: int = 1,
+    role_id: uuid.UUID | None = None,
+    department_id: uuid.UUID | None = None,
+) -> uuid.UUID:
     account_id = uuid.uuid4()
     connection.execute(
         text(
             """
-            INSERT INTO accounts (id, login, status, password_verifier, password_change_required, auth_version)
-            VALUES (:id, :login, :status, 'argon2id-placeholder', true, :auth_version)
+            INSERT INTO accounts (
+                id, login, status, password_verifier, password_change_required, auth_version, role_id, department_id
+            ) VALUES (
+                :id, :login, :status, 'argon2id-placeholder', true, :auth_version, :role_id, :department_id
+            )
             """
         ),
-        {"id": account_id, "login": login, "status": status, "auth_version": auth_version},
+        {
+            "id": account_id,
+            "login": login,
+            "status": status,
+            "auth_version": auth_version,
+            "role_id": role_id,
+            "department_id": department_id,
+        },
     )
     return account_id
 
 
-def test_postgres_schema_has_six_auth_tables_and_required_catalog_constraints(integration_engine: Engine) -> None:
+def test_postgres_schema_has_auth_and_rbac_tables_and_required_catalog_constraints(integration_engine: Engine) -> None:
     with integration_engine.connect() as connection:
         tables = set(
             connection.execute(
                 text(
                     "SELECT tablename FROM pg_tables WHERE schemaname = 'public' "
-                    "AND tablename IN ('accounts', 'sessions', 'refresh_token_families', "
+                    "AND tablename IN ('accounts', 'roles', 'departments', 'admin_scopes', 'sessions', "
+                    "'refresh_token_families', "
                     "'refresh_tokens', 'bootstrap_state', 'authentication_audit_events')"
                 )
             ).scalars()
@@ -57,7 +76,8 @@ def test_postgres_schema_has_six_auth_tables_and_required_catalog_constraints(in
             connection.execute(
                 text(
                     "SELECT conname FROM pg_constraint WHERE conrelid IN "
-                    "('accounts'::regclass, 'sessions'::regclass, 'refresh_token_families'::regclass, "
+                    "('accounts'::regclass, 'roles'::regclass, 'departments'::regclass, "
+                    "'admin_scopes'::regclass, 'sessions'::regclass, 'refresh_token_families'::regclass, "
                     "'refresh_tokens'::regclass, 'bootstrap_state'::regclass, "
                     "'authentication_audit_events'::regclass)"
                 )
@@ -67,7 +87,8 @@ def test_postgres_schema_has_six_auth_tables_and_required_catalog_constraints(in
             connection.execute(
                 text(
                     "SELECT indexname FROM pg_indexes WHERE schemaname = 'public' "
-                    "AND tablename IN ('sessions', 'refresh_token_families', 'refresh_tokens', "
+                    "AND tablename IN ('accounts', 'admin_scopes', 'sessions', 'refresh_token_families', "
+                    "'refresh_tokens', "
                     "'authentication_audit_events')"
                 )
             ).scalars()
@@ -75,6 +96,9 @@ def test_postgres_schema_has_six_auth_tables_and_required_catalog_constraints(in
 
     assert tables == {
         "accounts",
+        "roles",
+        "departments",
+        "admin_scopes",
         "sessions",
         "refresh_token_families",
         "refresh_tokens",
@@ -86,12 +110,80 @@ def test_postgres_schema_has_six_auth_tables_and_required_catalog_constraints(in
     )
     assert "uq_refresh_tokens_token_hash" in constraint_names
     assert "bootstrap_state_account_id_key" in constraint_names
+    assert {"uq_roles_code", "uq_departments_code", "pk_admin_scopes"}.issubset(constraint_names)
     assert {
+        "ix_accounts_role_id",
+        "ix_accounts_department_id",
+        "ix_admin_scopes_department_id",
         "ix_sessions_account_id",
         "ix_refresh_token_families_account_id",
         "ix_refresh_tokens_family_id",
         "ix_authentication_audit_events_account_id_occurred_at",
     }.issubset(index_names)
+
+
+def test_postgres_enforces_rbac_reference_and_scope_integrity(integration_engine: Engine) -> None:
+    with integration_engine.connect() as connection:
+        transaction = connection.begin()
+        try:
+            standard_admin_role_id = connection.execute(
+                text("SELECT id FROM roles WHERE code = 'standard_admin'")
+            ).scalar_one()
+            assert connection.execute(text("SELECT count(*) FROM roles")).scalar_one() == 3
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(
+                    text("INSERT INTO roles (id, code) VALUES (:id, 'chief_admin')"),
+                    {"id": uuid.uuid4()},
+                )
+
+            department_id = uuid.uuid4()
+            connection.execute(
+                text("INSERT INTO departments (id, code, name) VALUES (:id, 'engineering', 'Engineering')"),
+                {"id": department_id},
+            )
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(
+                    text("INSERT INTO departments (id, code, name) VALUES (:id, 'engineering', 'Duplicate')"),
+                    {"id": uuid.uuid4()},
+                )
+
+            administrator_id = _insert_account(
+                connection,
+                login=str(uuid.uuid4()),
+                role_id=standard_admin_role_id,
+                department_id=department_id,
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO admin_scopes (admin_account_id, department_id) VALUES (:account_id, :department_id)"
+                ),
+                {"account_id": administrator_id, "department_id": department_id},
+            )
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(
+                    text(
+                        "INSERT INTO admin_scopes (admin_account_id, department_id) VALUES (:account_id, :department_id)"
+                    ),
+                    {"account_id": administrator_id, "department_id": department_id},
+                )
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                _insert_account(
+                    connection,
+                    login=str(uuid.uuid4()),
+                    role_id=uuid.uuid4(),
+                    department_id=department_id,
+                )
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(
+                    text(
+                        "INSERT INTO admin_scopes (admin_account_id, department_id) VALUES (:account_id, :department_id)"
+                    ),
+                    {"account_id": administrator_id, "department_id": uuid.uuid4()},
+                )
+            transaction.rollback()
+        finally:
+            if transaction.is_active:
+                transaction.rollback()
 
 
 def test_postgres_rejects_duplicate_login_invalid_status_and_auth_version(integration_engine: Engine) -> None:

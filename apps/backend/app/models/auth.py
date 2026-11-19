@@ -20,6 +20,24 @@ from sqlalchemy.sql import func
 from app.models.base import Base, CreatedAtMixin, UUIDPrimaryKeyMixin
 
 
+class Role(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "roles"
+
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+
+    accounts: Mapped[list[Account]] = relationship(back_populates="role")
+
+
+class Department(UUIDPrimaryKeyMixin, Base):
+    __tablename__ = "departments"
+
+    code: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    accounts: Mapped[list[Account]] = relationship(back_populates="department")
+    admin_scopes: Mapped[list[AdminScope]] = relationship(back_populates="department")
+
+
 class Account(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __tablename__ = "accounts"
     __table_args__ = (
@@ -32,11 +50,32 @@ class Account(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     password_verifier: Mapped[str] = mapped_column(Text, nullable=False)
     password_change_required: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     auth_version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
-    department_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
-    role_id: Mapped[uuid.UUID | None] = mapped_column(nullable=True)
+    department_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("departments.id", ondelete="RESTRICT"), nullable=True
+    )
+    role_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("roles.id", ondelete="RESTRICT"), nullable=True
+    )
 
+    department: Mapped[Department | None] = relationship(back_populates="accounts")
+    role: Mapped[Role | None] = relationship(back_populates="accounts")
     sessions: Mapped[list[Session]] = relationship(back_populates="account")
     refresh_token_families: Mapped[list[RefreshTokenFamily]] = relationship(back_populates="account")
+    admin_scopes: Mapped[list[AdminScope]] = relationship(back_populates="admin_account")
+
+
+class AdminScope(Base):
+    __tablename__ = "admin_scopes"
+
+    admin_account_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE"), primary_key=True
+    )
+    department_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("departments.id", ondelete="RESTRICT"), primary_key=True
+    )
+
+    admin_account: Mapped[Account] = relationship(back_populates="admin_scopes")
+    department: Mapped[Department] = relationship(back_populates="admin_scopes")
 
 
 class RefreshTokenFamily(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
