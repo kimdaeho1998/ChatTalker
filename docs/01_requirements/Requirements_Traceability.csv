@@ -1,8 +1,8 @@
 Requirement ID,Priority,Design Contract,API/DB Reference,Test Cases,Acceptance Status
-AUTH-001,P0,Security/RBAC,ONE_TIME_LOCAL_CLI bootstrap; POST /admin/accounts; accounts/bootstrap_state/audit_events,AT-AUTH-01;AT-AUTH-02,Specified; OD-005 accepted
+AUTH-001,P0,Security/RBAC,ONE_TIME_LOCAL_CLI bootstrap; POST /admin/accounts; roles/departments/admin_scopes (future approved migration); accounts/bootstrap_state/audit_events,AT-AUTH-01;AT-AUTH-02;AT-AUTH-13;AT-AUTH-14;AT-AUTH-15;AT-AUTH-16;AT-AUTH-17;AT-AUTH-18,Specified; OD-005 and OD-006 accepted
 AUTH-002,P0,Security/session,POST /auth/login and /auth/password; accounts/sessions,AT-AUTH-03;AT-AUTH-04;AT-AUTH-05,Specified
-AUTH-003,P0,Security/revocation,POST /auth/refresh and /auth/logout; PATCH /admin/accounts/{id}; sessions/refresh_token_families/ws,AT-AUTH-06;AT-AUTH-07;AT-AUTH-08;AT-AUTH-09;AT-AUTH-10;AT-AUTH-11,Specified
-AUTH-004,P0,DB/audit,authentication_audit_events/audit_events,AT-AUTH-12,Specified
+AUTH-003,P0,Security/revocation,POST /auth/refresh and /auth/logout; PATCH /admin/accounts/{id}; sessions/refresh_token_families/ws,AT-AUTH-06;AT-AUTH-07;AT-AUTH-08;AT-AUTH-09;AT-AUTH-10;AT-AUTH-11;AT-AUTH-19;AT-AUTH-20,Specified; OD-006 accepted
+AUTH-004,P0,DB/audit,authentication_audit_events/audit_events,AT-AUTH-12;AT-AUTH-13;AT-AUTH-14;AT-AUTH-15;AT-AUTH-16;AT-AUTH-18;AT-AUTH-19;AT-AUTH-20,Specified; OD-006 accepted
 MSG-001,P0,Architecture/message,POST /conversations/{id}/messages; messages,AT-MSG-01,Specified
 MSG-002,P0,Security/membership,group membership API,AT-MSG-02,Specified
 MSG-003,P0,DB/durability,messages transaction,AT-MSG-03,Specified

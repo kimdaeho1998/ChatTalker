@@ -17,6 +17,14 @@ QA records environment, build/version, fixture, tester, result, evidence and def
 | AT-AUTH-10 | Deactivate account with active sessions; verify REST rejection, all session-family revocation, and audit event. |
 | AT-AUTH-11 | Attempt WebSocket handshake/use with expired, revoked, or deactivated session; verify rejection or terminal close. |
 | AT-AUTH-12 | Verify login, failure, password change, rotation, reuse, logout, revocation and deactivation audit events omit passwords and raw tokens. |
+| AT-AUTH-13 | Authenticate as `chief_admin`; verify company-wide employee-account management and standard-administrator designation/revocation are allowed, while self role/scope change is denied and audited. |
+| AT-AUTH-14 | Authenticate as `standard_admin` with one department grant; create/read/deactivate/revoke an `employee` target in that department and verify success plus audit evidence. |
+| AT-AUTH-15 | Authenticate as a scoped `standard_admin`; request an employee target in an ungranted department and verify fail-closed `403`, no mutation, and denial audit evidence. |
+| AT-AUTH-16 | Attempt as `standard_admin` to create, alter, delegate, or revoke an administrator role or department scope; verify `403`, no privilege expansion, and audit evidence. |
+| AT-AUTH-17 | Authenticate as `employee`; invoke each administrator account/session endpoint and verify `403`, no mutation, and no account-existence leakage beyond contract. |
+| AT-AUTH-18 | Attempt self role or department-scope modification as an administrator; verify `403`, no mutation, and audit evidence. |
+| AT-AUTH-19 | Deactivate an administrator, then use REST and WebSocket administrator operations; verify current authorization validation rejects access and writes required audit evidence. |
+| AT-AUTH-20 | Revoke a role or department scope while a target administrator has an active session; verify atomic authority change/audit and rejection of later REST and WebSocket operations using that session. |
 | AT-MSG-01..04 | Send direct/group message; alter membership; interrupt network/reconnect with cursor; assert committed-only ack and exactly-once UI dedupe. |
 | AT-MSG-05..08, AT-ATT-01 | Attempt out-of-scope search/read/attachment download; assert R2 object is private and unscanned/failed object is unavailable; test receipt and notification behavior. |
 | AT-AI-01..05 | Seed mixed priority unread content and unauthorized content; invoke first activation; validate rank/source links; force provider error; verify unread/task state unchanged; assert user-scoped cache. |
