@@ -1,4 +1,5 @@
 import os
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 import pytest
@@ -6,7 +7,12 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
-from app.services.bootstrap import BootstrapError, assert_local_target, bootstrap_chief_admin
+from app.services.bootstrap import (
+    BootstrapError,
+    assert_local_target,
+    bootstrap_chief_admin,
+    resolve_bootstrap_target,
+)
 import app.services.bootstrap as bootstrap_service
 
 
@@ -39,6 +45,28 @@ def test_bootstrap_rejects_bad_or_missing_secret(db):
         for secret in (None, "wrong"):
             with pytest.raises(BootstrapError): bootstrap_chief_admin(session, login="chief", password="password", database_url="postgresql+psycopg://x:x@127.0.0.1:5434/chatalker_auth_migration_test", operator_secret="entered", configured_secret=secret)
         assert session.execute(text("SELECT count(*) FROM accounts")).scalar_one() == 0
+
+
+def test_bootstrap_rejects_existing_chief_admin(db):
+    with db() as session:
+        role_id = session.execute(text("SELECT id FROM roles WHERE code = 'chief_admin'")).scalar_one()
+        session.execute(
+            text(
+                "INSERT INTO accounts (id, login, password_verifier, password_change_required, auth_version, role_id) "
+                "VALUES (:id, 'existing-chief', 'test-verifier', true, 1, :role_id)"
+            ),
+            {"id": uuid.uuid4(), "role_id": role_id},
+        )
+        session.commit()
+        with pytest.raises(BootstrapError, match="Chief administrator already exists"):
+            bootstrap_chief_admin(
+                session,
+                login="another-chief",
+                password="password",
+                database_url="postgresql+psycopg://x:x@127.0.0.1:5434/chatalker_auth_migration_test",
+                operator_secret="entered",
+                configured_secret="entered",
+            )
 
 
 def test_concurrent_bootstrap_has_single_winner(db):
@@ -81,3 +109,53 @@ def test_bootstrap_retries_after_rollback_with_new_secret(db, monkeypatch):
         assert session.execute(text("SELECT count(*) FROM accounts")).scalar_one() == 1
         assert session.execute(text("SELECT count(*) FROM bootstrap_state")).scalar_one() == 1
         assert session.execute(text("SELECT count(*) FROM authentication_audit_events WHERE event_type='bootstrap'")).scalar_one() == 1
+
+
+def test_target_guard_accepts_only_explicit_approved_supabase_configuration():
+    project_ref = "approvedprojectref123"
+    approved_url = (
+        "postgresql+psycopg://postgres.approvedprojectref123:password@"
+        "aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres"
+    )
+    assert resolve_bootstrap_target(
+        approved_url,
+        sslmode="require",
+        execution_mode="supabase",
+        expected_supabase_project_ref=project_ref,
+    ).kind == "supabase"
+
+    rejected_cases = [
+        (approved_url, "require", "local_test", project_ref),
+        (approved_url, "disable", "supabase", project_ref),
+        (approved_url, "require", "supabase", None),
+        (approved_url, "require", "supabase", "otherprojectref12345"),
+        (
+            "postgresql+psycopg://postgres.approvedprojectref123:password@"
+            "other.pooler.supabase.com:5432/postgres",
+            "require",
+            "supabase",
+            project_ref,
+        ),
+        (
+            "postgresql+psycopg://postgres.approvedprojectref123:password@"
+            "aws-0-ap-northeast-2.pooler.supabase.com:5433/postgres",
+            "require",
+            "supabase",
+            project_ref,
+        ),
+        (
+            "postgresql+psycopg://postgres.approvedprojectref123:password@"
+            "aws-0-ap-northeast-2.pooler.supabase.com:5432/other_database",
+            "require",
+            "supabase",
+            project_ref,
+        ),
+    ]
+    for url, sslmode, mode, ref in rejected_cases:
+        with pytest.raises(BootstrapError):
+            resolve_bootstrap_target(
+                url,
+                sslmode=sslmode,
+                execution_mode=mode,
+                expected_supabase_project_ref=ref,
+            )
