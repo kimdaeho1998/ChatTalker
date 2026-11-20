@@ -15,5 +15,10 @@
     ],
     "security": { "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:8000; style-src 'self' 'unsafe-inline'" }
   },
-  "bundle": { "active": true, "targets": "all", "windows": { "wix": { "language": ["ko-KR"] } } }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/icon.ico"],
+    "windows": { "wix": { "language": ["ko-KR"] } }
+  }
 }
