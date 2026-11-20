@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
 from app.core.database import get_session_factory
@@ -140,6 +140,139 @@ def logout(account: Account = Depends(current_account), db: Session = Depends(db
 def _require_admin(db: Session, actor: Account) -> str:
     try: return role_code(db, actor)
     except ForbiddenError as exc: raise HTTPException(403, detail="FORBIDDEN") from exc
+
+
+ROLE_DISPLAY_NAMES = {
+    "chief_admin": "Chief administrator",
+    "standard_admin": "Standard administrator",
+    "employee": "Employee",
+}
+
+
+def _department_data(department: Department | None) -> dict | None:
+    if department is None:
+        return None
+    return {"department_id": str(department.id), "code": department.code, "name": department.name}
+
+
+def _account_data(account: Account) -> dict:
+    return {
+        "account_id": str(account.id),
+        "login": account.login,
+        "status": account.status,
+        "role": (
+            {"code": account.role.code, "display_name": ROLE_DISPLAY_NAMES[account.role.code]}
+            if account.role is not None
+            else None
+        ),
+        "department": _department_data(account.department),
+        "password_change_required": account.password_change_required,
+    }
+
+
+def _admin_account_filters(actor: Account, actor_role: str) -> list:
+    if actor_role == "chief_admin":
+        return []
+    if actor_role == "standard_admin":
+        scoped_departments = select(AdminScope.department_id).where(AdminScope.admin_account_id == actor.id)
+        return [Account.department_id.in_(scoped_departments), Account.role.has(Role.code == "employee")]
+    raise HTTPException(403, detail="FORBIDDEN")
+
+
+@router.get("/auth/me")
+def me(actor: Account = Depends(current_account), db: Session = Depends(db_session)) -> dict:
+    account = db.scalar(
+        select(Account)
+        .options(selectinload(Account.role), selectinload(Account.department))
+        .where(Account.id == actor.id)
+    )
+    if account is None:
+        raise HTTPException(401, detail="AUTH_INVALID")
+    current_role = role_code(db, account)
+    scopes = db.scalars(
+        select(Department)
+        .join(AdminScope, AdminScope.department_id == Department.id)
+        .where(AdminScope.admin_account_id == account.id)
+        .order_by(Department.code.asc(), Department.id.asc())
+    ).all()
+    return response(
+        "OK",
+        "Current account",
+        {
+            **_account_data(account),
+            "role_code": current_role,
+            "admin_scopes": [_department_data(scope) for scope in scopes],
+        },
+    )
+
+
+@router.get("/admin/accounts")
+def list_accounts(
+    actor: Account = Depends(current_account),
+    db: Session = Depends(db_session),
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    search: Annotated[str | None, Query(min_length=1, max_length=320)] = None,
+    status: Literal["active", "disabled"] | None = None,
+    department_id: uuid.UUID | None = None,
+) -> dict:
+    filters = _admin_account_filters(actor, _require_admin(db, actor))
+    if search is not None:
+        filters.append(Account.login.ilike(f"%{search}%"))
+    if status is not None:
+        filters.append(Account.status == status)
+    if department_id is not None:
+        filters.append(Account.department_id == department_id)
+    total = db.scalar(select(func.count()).select_from(Account).where(*filters)) or 0
+    accounts = db.scalars(
+        select(Account)
+        .options(selectinload(Account.role), selectinload(Account.department))
+        .where(*filters)
+        .order_by(Account.created_at.asc(), Account.id.asc())
+        .offset(offset)
+        .limit(limit)
+    ).all()
+    return response("OK", "Accounts", {"items": [_account_data(account) for account in accounts], "total": total, "limit": limit, "offset": offset})
+
+
+@router.get("/admin/accounts/{account_id}")
+def account_detail(account_id: uuid.UUID, actor: Account = Depends(current_account), db: Session = Depends(db_session)) -> dict:
+    _require_admin(db, actor)
+    account = db.scalar(
+        select(Account)
+        .options(selectinload(Account.role), selectinload(Account.department))
+        .where(Account.id == account_id)
+    )
+    if account is None:
+        raise HTTPException(404, detail="NOT_FOUND")
+    # The established administrator error contract uses 403 for an existing, out-of-scope account.
+    if not can_manage(db, actor, account):
+        raise HTTPException(403, detail="FORBIDDEN")
+    return response("OK", "Account", _account_data(account))
+
+
+@router.get("/admin/departments")
+def list_departments(actor: Account = Depends(current_account), db: Session = Depends(db_session)) -> dict:
+    actor_role = _require_admin(db, actor)
+    statement = select(Department)
+    if actor_role == "standard_admin":
+        statement = statement.join(AdminScope, AdminScope.department_id == Department.id).where(AdminScope.admin_account_id == actor.id)
+    elif actor_role != "chief_admin":
+        raise HTTPException(403, detail="FORBIDDEN")
+    departments = db.scalars(statement.order_by(Department.code.asc(), Department.id.asc())).all()
+    return response("OK", "Departments", {"items": [_department_data(department) for department in departments]})
+
+
+@router.get("/admin/roles")
+def list_roles(actor: Account = Depends(current_account), db: Session = Depends(db_session)) -> dict:
+    actor_role = _require_admin(db, actor)
+    statement = select(Role)
+    if actor_role == "standard_admin":
+        statement = statement.where(Role.code == "employee")
+    elif actor_role != "chief_admin":
+        raise HTTPException(403, detail="FORBIDDEN")
+    roles = db.scalars(statement.order_by(Role.code.asc())).all()
+    return response("OK", "Roles", {"items": [{"code": role.code, "display_name": ROLE_DISPLAY_NAMES[role.code]} for role in roles]})
 
 
 @router.post("/admin/accounts")

@@ -46,6 +46,12 @@ def seed_account(engine, login: str, password: str, role: str = "employee", *, r
     return account_id
 
 
+def access_token(http, login: str, password: str) -> str:
+    result = http.post("/auth/login", json={"login": login, "password": password})
+    assert result.status_code == 200
+    return result.json()["data"]["access_token"]
+
+
 def test_login_refresh_reuse_and_logout(client):
     http, engine = client
     seed_account(engine, "employee", "correct-password")
@@ -245,3 +251,91 @@ def test_password_change_creates_redacted_audit_event(client):
         text_values = str(connection.execute(text("SELECT event_type, result_code, correlation_id FROM authentication_audit_events")).all())
     assert row[0] is not None and row[1] is not None and row[2] == "password_change"
     assert "old-password" not in text_values and "new-password" not in text_values and required["password_change_token"] not in text_values
+
+
+def test_admin_read_apis_enforce_scope_and_redact_sensitive_fields(client):
+    http, engine = client
+    department_a, department_b = uuid.uuid4(), uuid.uuid4()
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO departments (id, code, name) VALUES (:a, 'alpha', 'Alpha'), (:b, 'bravo', 'Bravo')"),
+            {"a": department_a, "b": department_b},
+        )
+    chief_id = seed_account(engine, "read-chief", "password", "chief_admin")
+    standard_id = seed_account(engine, "read-standard", "password", "standard_admin", department_id=department_a)
+    allowed_first = seed_account(engine, "alpha-visible-one", "password", department_id=department_a)
+    allowed_second = seed_account(engine, "alpha-visible-two", "password", department_id=department_a)
+    disabled_id = seed_account(engine, "alpha-disabled", "password", active=False, department_id=department_a)
+    blocked_id = seed_account(engine, "bravo-hidden", "password", department_id=department_b)
+    employee_id = seed_account(engine, "read-employee", "password", department_id=department_a)
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO admin_scopes (admin_account_id, department_id) VALUES (:admin, :department)"),
+            {"admin": standard_id, "department": department_a},
+        )
+
+    chief_headers = {"Authorization": "Bearer " + access_token(http, "read-chief", "password")}
+    standard_headers = {"Authorization": "Bearer " + access_token(http, "read-standard", "password")}
+    employee_headers = {"Authorization": "Bearer " + access_token(http, "read-employee", "password")}
+
+    chief_list = http.get("/admin/accounts", headers=chief_headers)
+    assert chief_list.status_code == 200
+    assert {item["account_id"] for item in chief_list.json()["data"]["items"]} == {
+        str(chief_id), str(standard_id), str(allowed_first), str(allowed_second), str(disabled_id), str(blocked_id), str(employee_id)
+    }
+    assert "password_verifier" not in str(chief_list.json()) and "token_hash" not in str(chief_list.json())
+    assert http.get(f"/admin/accounts/{blocked_id}", headers=chief_headers).status_code == 200
+
+    scoped = http.get("/admin/accounts", headers=standard_headers, params={"limit": 1, "offset": 0})
+    assert scoped.status_code == 200
+    assert scoped.json()["data"]["total"] == 4 and len(scoped.json()["data"]["items"]) == 1
+    assert http.get(f"/admin/accounts/{allowed_first}", headers=standard_headers).status_code == 200
+    assert http.get(f"/admin/accounts/{blocked_id}", headers=standard_headers).status_code == 403
+    assert http.get("/admin/accounts", headers=standard_headers, params={"search": "bravo-hidden"}).json()["data"]["total"] == 0
+    assert http.get("/admin/accounts", headers=standard_headers, params={"department_id": str(department_b)}).json()["data"]["total"] == 0
+    assert http.get("/admin/accounts", headers=standard_headers, params={"department_id": str(department_a)}).json()["data"]["total"] == 4
+    assert http.get("/admin/accounts", headers=standard_headers, params={"status": "active"}).json()["data"]["total"] == 3
+    assert http.get("/admin/accounts", headers=standard_headers, params={"status": "disabled"}).json()["data"]["total"] == 1
+
+    standard_departments = http.get("/admin/departments", headers=standard_headers)
+    assert standard_departments.status_code == 200
+    assert standard_departments.json()["data"]["items"] == [{"department_id": str(department_a), "code": "alpha", "name": "Alpha"}]
+    standard_roles = http.get("/admin/roles", headers=standard_headers)
+    assert standard_roles.status_code == 200
+    assert standard_roles.json()["data"]["items"] == [{"code": "employee", "display_name": "Employee"}]
+    chief_roles = http.get("/admin/roles", headers=chief_headers)
+    assert {role["code"] for role in chief_roles.json()["data"]["items"]} == {"chief_admin", "standard_admin", "employee"}
+
+    for path in ("/admin/accounts", f"/admin/accounts/{allowed_first}", "/admin/departments", "/admin/roles"):
+        assert http.get(path, headers=employee_headers).status_code == 403
+
+
+def test_current_user_reflects_current_scope_and_rejects_disabled_or_revoked_sessions(client):
+    http, engine = client
+    department_id = uuid.uuid4()
+    with engine.begin() as connection:
+        connection.execute(text("INSERT INTO departments (id, code, name) VALUES (:id, 'current', 'Current')"), {"id": department_id})
+    standard_id = seed_account(engine, "current-standard", "password", "standard_admin", department_id=department_id)
+    with engine.begin() as connection:
+        connection.execute(
+            text("INSERT INTO admin_scopes (admin_account_id, department_id) VALUES (:admin, :department)"),
+            {"admin": standard_id, "department": department_id},
+        )
+    headers = {"Authorization": "Bearer " + access_token(http, "current-standard", "password")}
+    current = http.get("/auth/me", headers=headers)
+    assert current.status_code == 200
+    data = current.json()["data"]
+    assert data["account_id"] == str(standard_id)
+    assert data["role_code"] == "standard_admin"
+    assert data["department"]["department_id"] == str(department_id)
+    assert data["admin_scopes"] == [{"department_id": str(department_id), "code": "current", "name": "Current"}]
+    assert "password_verifier" not in str(data) and "refresh_token" not in str(data)
+
+    assert http.post("/auth/logout", headers=headers).status_code == 200
+    assert http.get("/auth/me", headers=headers).status_code == 401
+
+    disabled_id = seed_account(engine, "current-disabled", "password")
+    disabled_headers = {"Authorization": "Bearer " + access_token(http, "current-disabled", "password")}
+    with engine.begin() as connection:
+        connection.execute(text("UPDATE accounts SET status = 'disabled', auth_version = auth_version + 1 WHERE id = :id"), {"id": disabled_id})
+    assert http.get("/auth/me", headers=disabled_headers).status_code == 401
